@@ -78,7 +78,7 @@ test('browser: desktop page loads, runs by itself and paints without errors', { 
     // The rain starts by itself; the rivers are surveyed as it runs.
     assert.equal(await page.evaluate('window.__silt.state.running'), true, 'no autoplay');
     await page.waitFor('window.__silt.engine.steps > 60 && window.__silt.engine.rivers().length > 5 * 20', 20000);
-    assert.match(await page.evaluate(`document.getElementById('tb-step').textContent`), /ms per step.*measured here \(512² grid\)/);
+    await page.waitFor(`/ms per step.*measured here \\(512² grid\\)/.test(document.getElementById('tb-step').textContent)`, 5000);
     // Halt.
     await page.evaluate(`document.getElementById('run').click()`);
     const halted = await page.evaluate('window.__silt.engine.steps');

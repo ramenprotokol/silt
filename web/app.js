@@ -65,6 +65,7 @@ const state = {
   stepMs: null, // rolling average on the current grid; null until measured
   surveyMs: null, // drainage survey time on the current grid; null until measured
   pastGoal: false, // the 10,000-year halt has happened for this survey
+  readoutsDue: false, // a first timing arrived: show it on the next draw
   lost: false, // the WebGL context is lost
   dirty: true,
   baseDirty: true,
@@ -182,7 +183,8 @@ function updateReadouts(force = false) {
   state.frames++;
   // While running, the slower readouts refresh every 20th frame; when
   // halted (painting, stepping, resetting) they always refresh.
-  if (!force && state.running && state.frames % 20 !== 0) return;
+  if (!force && !state.readoutsDue && state.running && state.frames % 20 !== 0) return;
+  state.readoutsDue = false;
   ui.tbStep.textContent = stepTimeText(state.stepMs, state.surveyMs, state.grid);
   // The kernel books every drop of water and grain of sediment; show how
   // closely the books balance (f32 fields, so a few parts per million).
@@ -462,6 +464,7 @@ function toggleRun() {
 
 function measureStep(ms, k, weight) {
   const per = ms / k;
+  if (state.stepMs == null) state.readoutsDue = true;
   state.stepMs = state.stepMs == null ? per : state.stepMs + (per - state.stepMs) * weight;
 }
 
@@ -471,6 +474,7 @@ function settle() {
   const surveyed = state.engine.settle();
   const ms = performance.now() - t;
   if (surveyed) {
+    if (state.surveyMs == null) state.readoutsDue = true;
     state.surveyMs = state.surveyMs == null ? ms : state.surveyMs + (ms - state.surveyMs) * 0.2;
     state.dirty = true;
   }
