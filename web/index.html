@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>silt · Sheet 4 · paint a mountain, watch the rain carve a delta</title>
+<meta name="description" content="Paint a mountain, then watch ten thousand years of rain carve rivers and build a delta. A hydraulic-erosion model written in Zig and running in your browser as WebAssembly.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&amp;display=swap">
+<link rel="stylesheet" href="styles.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<div class="sheet">
+  <header class="sheet-head">
+    <span class="sheet-series">Ramen Protocol &middot; Surveys of Imagined Coasts</span>
+    <span class="sheet-no">Sheet 4</span>
+  </header>
+
+  <div class="sheet-body">
+    <div class="masthead">
+      <h1 class="title">Silt</h1>
+      <p class="tagline">Paint a mountain, then watch ten thousand years of rain carve rivers and build a delta.</p>
+    </div>
+
+    <figure class="map-wrap">
+      <div class="map-frame" id="frame">
+        <div class="ticks" id="ticks" aria-hidden="true"></div>
+        <div class="neat">
+          <canvas id="map" tabindex="0" role="application" aria-roledescription="map"
+            aria-label="Survey map. Arrow keys move the brush, Enter paints, Shift and Enter paints the opposite way, Space runs or halts time, square brackets change the brush size."></canvas>
+          <div class="brush-ring" id="ring" aria-hidden="true"></div>
+          <p class="map-status" id="status" role="status" aria-live="polite">Loading the survey&hellip;</p>
+        </div>
+      </div>
+      <figcaption class="map-cap">An imagined coast, surveyed as the rain works on it. Heights, distances and years are illustrative.</figcaption>
+    </figure>
+
+    <aside class="margin margin-tools" aria-label="Survey tools">
+
+      <section class="tool" aria-labelledby="h-time">
+        <h2 id="h-time">Time</h2>
+        <div class="time-row">
+          <button id="run" type="button" class="btn btn-primary" aria-pressed="false">Run</button>
+          <button id="step" type="button" class="btn">+25 years</button>
+          <button id="reset" type="button" class="btn btn-quiet">Reset</button>
+        </div>
+        <p class="years" aria-live="off"><span id="years" class="years-n">0</span><span class="years-u">years<a href="#years-note" class="ref-mark" aria-label="About the years scale">*</a></span></p>
+        <p id="years-note" class="footnote">* A playful scale: each step of the model is counted as 1&frac14; years. This is not geology.</p>
+        <label class="rule-field" for="rain">
+          <span class="rule-label">Rainfall <output id="rain-out" for="rain"></output></span>
+          <input id="rain" type="range" min="2" max="12" step="1" value="5">
+        </label>
+      </section>
+
+      <section class="tool" aria-labelledby="h-brush">
+        <h2 id="h-brush">Brush</h2>
+        <div class="stamps" role="radiogroup" aria-label="Brush action">
+          <label class="stamp"><input type="radio" name="mode" value="raise" checked><span>Raise</span></label>
+          <label class="stamp"><input type="radio" name="mode" value="lower"><span>Lower</span></label>
+        </div>
+        <label class="rule-field" for="size">
+          <span class="rule-label">Size <output id="size-out" for="size"></output></span>
+          <input id="size" type="range" min="4" max="48" step="1" value="18">
+        </label>
+        <label class="rule-field" for="strength">
+          <span class="rule-label">Strength <output id="strength-out" for="strength"></output></span>
+          <input id="strength" type="range" min="1" max="10" step="1" value="5">
+        </label>
+        <p class="hint">Drag on the map. Hold <kbd>Alt</kbd> to do the opposite. With the map focused: arrow keys move the brush, <kbd>Enter</kbd> paints, <kbd>Space</kbd> runs or halts.</p>
+      </section>
+    </aside>
+
+    <aside class="margin margin-ref" aria-label="Legend, survey and export">
+      <section aria-labelledby="h-ref">
+        <h2 id="h-ref">Reference</h2>
+        <ul class="legend" id="legend"></ul>
+        <ul class="symbols">
+          <li><span class="sym sym-water" aria-hidden="true"></span>Sea, lakes and rivers</li>
+          <li><span class="sym sym-contour" aria-hidden="true"></span>Contour, every 20&nbsp;m</li>
+          <li><span class="sym sym-index" aria-hidden="true"></span>Index contour, every 100&nbsp;m</li>
+          <li><span class="sym sym-alluvium" aria-hidden="true"></span>Alluvium: over 5&nbsp;m laid down since the survey began</li>
+        </ul>
+      </section>
+
+      <div class="orient">
+        <svg class="north" viewBox="0 0 40 64" role="img" aria-label="North arrow: north is up">
+          <path d="M20 4 L31 44 L20 36 L9 44 Z" class="north-open"/>
+          <path d="M20 4 L20 36 L9 44 Z" class="north-fill"/>
+          <text x="20" y="60" text-anchor="middle" class="north-n">N</text>
+        </svg>
+        <div class="scale-wrap">
+          <div class="scale" id="scale" role="img" aria-label="Scale bar"></div>
+          <p class="scale-cap">Scale true to the map on screen; the ground is illustrative.</p>
+        </div>
+      </div>
+
+      <dl class="title-block" aria-label="Sheet details">
+        <div class="tb-head"><dt>Sheet</dt><dd>4 &middot; <span class="tb-name">Silt</span></dd></div>
+        <div><dt>Method</dt><dd>Virtual-pipe hydraulic erosion after Mei, Decaudin &amp; Hu (2007); kernel in Zig, run as WebAssembly</dd></div>
+        <div><dt>Grid</dt><dd id="tb-grid">&ndash;</dd></div>
+        <div><dt>Contours</dt><dd>Interval 20&nbsp;m; one cell = 20&nbsp;m (illustrative)</dd></div>
+        <div><dt>Step time</dt><dd id="tb-step">&ndash;</dd></div>
+        <div><dt>Ledger</dt><dd id="tb-ledger">&ndash;</dd></div>
+        <div><dt>Kernel</dt><dd id="tb-wasm">&ndash;</dd></div>
+      </dl>
+      <section aria-labelledby="h-survey">
+        <h2 id="h-survey">Survey</h2>
+        <form id="survey-form" class="survey-form" novalidate>
+          <label for="seed" class="field-label">Survey no.</label>
+          <div class="seed-row">
+            <input id="seed" name="seed" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="12" aria-describedby="seed-msg">
+            <button type="submit" class="btn">Open</button>
+            <button type="button" id="new-survey" class="btn btn-quiet">New</button>
+          </div>
+          <p id="seed-msg" class="msg" role="alert"></p>
+        </form>
+        <fieldset class="grid-set">
+          <legend class="field-label">Grid</legend>
+          <label class="stamp stamp-small"><input type="radio" name="grid" value="512"><span>512²</span></label>
+          <label class="stamp stamp-small"><input type="radio" name="grid" value="256"><span>256²</span></label>
+        </fieldset>
+        <p id="grid-note" class="note"></p>
+        <div class="export-row">
+          <button id="export-height" type="button" class="btn">Heightmap &middot; 16-bit PNG</button>
+          <button id="export-map" type="button" class="btn btn-quiet">Map view &middot; PNG</button>
+        </div>
+        <p id="export-msg" class="note" role="status" aria-live="polite"></p>
+      </section>
+
+      <button id="theme" type="button" class="btn btn-quiet theme-btn" aria-pressed="false">Night sheet</button>
+    </aside>
+  </div>
+
+  <footer class="sheet-foot">
+    <span>Drawn and eroded in your browser. Nothing is uploaded.</span>
+    <span>Built with AI assistance (Claude) &middot; ramenprotokol</span>
+  </footer>
+</div>
+</body>
+</html>
