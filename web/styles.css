@@ -9,7 +9,12 @@
   --rule: #9b8567;
   --hair: #cbbb9d;
   --accent: #9b3117;
-  --water: #2b479f;
+  --river: #2b479f;
+  --sea: #9aa3c2;
+  --shoal: #c0c2ce;
+  --silt: #cdd0a0;
+  --waterline: #2b479f;
+  --coast: #1b2c6e;
   --contour: #6b4222;
   --stipple: #5e3f25;
   --btn-ink: #f4eedf;
@@ -26,9 +31,14 @@
     --rule: #6a5f4d;
     --hair: #3b352b;
     --accent: #ec946c;
-    --water: #2f4aad;
+    --river: #7b95ea;
+    --sea: #212b4b;
+    --shoal: #353c55;
+    --silt: #5f6444;
+    --waterline: #6f88d8;
+    --coast: #9fb0ea;
     --contour: #efe2c4;
-    --stipple: #e2cb9f;
+    --stipple: #e8d3a8;
     --btn-ink: #1a1813;
     --shadow: 0 0 0 1px #2a261e, 0 24px 60px -30px rgb(0 0 0 / 0.9);
     color-scheme: dark;
@@ -43,9 +53,14 @@
   --rule: #6a5f4d;
   --hair: #3b352b;
   --accent: #ec946c;
-  --water: #2f4aad;
+  --river: #7b95ea;
+  --sea: #212b4b;
+  --shoal: #353c55;
+  --silt: #5f6444;
+  --waterline: #6f88d8;
+  --coast: #9fb0ea;
   --contour: #efe2c4;
-  --stipple: #e2cb9f;
+  --stipple: #e8d3a8;
   --btn-ink: #1a1813;
   --shadow: 0 0 0 1px #2a261e, 0 24px 60px -30px rgb(0 0 0 / 0.9);
   color-scheme: dark;
@@ -229,11 +244,12 @@ body {
   border-style: dashed;
 }
 
+/* Notes sit low on the sheet, over the open sea, not over the land. */
 .map-status {
   position: absolute;
   left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  bottom: 7%;
+  transform: translateX(-50%);
   margin: 0;
   max-width: 80%;
   padding: 0.5em 0.9em;
@@ -652,8 +668,25 @@ input[aria-invalid="true"] {
   position: relative;
 }
 
-.sym-water {
-  background: var(--water);
+.sym-river::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  top: 50%;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--river) 0 100%);
+  clip-path: polygon(0 35%, 100% 0, 100% 100%, 0 65%);
+}
+
+.sym-sea {
+  background:
+    linear-gradient(var(--coast), var(--coast)) 0 0 / 100% 1px no-repeat,
+    linear-gradient(var(--waterline), var(--waterline)) 0 3px / 100% 1px no-repeat,
+    linear-gradient(color-mix(in srgb, var(--waterline) 60%, transparent), color-mix(in srgb, var(--waterline) 60%, transparent)) 0 7px / 100% 1px no-repeat,
+    var(--sea);
 }
 
 .sym-contour::before,
@@ -671,6 +704,18 @@ input[aria-invalid="true"] {
   border-top-width: 2px;
   margin-top: -1px;
   opacity: 1;
+}
+
+.sym-newland {
+  background: var(--silt);
+  outline: 1px solid var(--hair);
+}
+
+.sym-shoal {
+  background-color: var(--shoal);
+  background-image: radial-gradient(circle, var(--waterline) 0 0.7px, transparent 1px);
+  background-size: 3.4px 3.4px;
+  outline: 1px solid var(--hair);
 }
 
 .sym-alluvium {

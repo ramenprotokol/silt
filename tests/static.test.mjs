@@ -1,15 +1,29 @@
 // Static checks on what dist/ serves: security headers, caching, privacy of the page.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { dist, root } from './helpers.mjs';
 
 test('dist/ has the page, the kernel and the headers', () => {
   const files = readdirSync(dist).sort();
-  for (const f of ['index.html', 'app.js', 'engine.js', 'render.js', 'styles.css', 'silt.wasm', '_headers', 'favicon.svg']) {
+  for (const f of ['index.html', 'app.js', 'engine.js', 'render.js', 'readout.js', 'styles.css', 'silt.wasm', '_headers', 'favicon.svg', 'THIRD-PARTY-NOTICES.txt']) {
     assert.ok(files.includes(f), `${f} missing from dist/`);
   }
+});
+
+test('third-party notices ship with the page and are linked from it', () => {
+  const notices = readFileSync(join(dist, 'THIRD-PARTY-NOTICES.txt'), 'utf8');
+  assert.match(notices, /Zig standard library and compiler-rt/);
+  assert.match(notices, /Copyright \(c\) Zig contributors/);
+  assert.match(notices, /musl/);
+  assert.match(notices, /Rich Felker/);
+  assert.match(notices, /Permission is hereby granted/);
+  assert.match(readFileSync(join(dist, 'index.html'), 'utf8'), /href="THIRD-PARTY-NOTICES\.txt"/);
+});
+
+test('a static site: no Worker secrets template in the repo', () => {
+  assert.ok(!existsSync(join(root, '.dev.vars.example')));
 });
 
 test('_headers sets a CSP and no long cache on unhashed files', () => {

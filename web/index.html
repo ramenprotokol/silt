@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>silt · Sheet 4 · paint a mountain, watch the rain carve a delta</title>
-<meta name="description" content="Paint a mountain, then watch ten thousand years of rain carve rivers and build a delta. A hydraulic-erosion model written in Zig and running in your browser as WebAssembly.">
+<title>silt · Sheet 4 · paint a mountain, watch the rain carve rivers and small deltas</title>
+<meta name="description" content="Paint a mountain, then watch ten thousand years of rain carve river valleys and build small deltas where the rivers reach the sea. A hydraulic-erosion model written in Zig and running in your browser as WebAssembly.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,7 +23,7 @@
   <div class="sheet-body">
     <div class="masthead">
       <h1 class="title">Silt</h1>
-      <p class="tagline">Paint a mountain, then watch ten thousand years of rain carve rivers and build a delta.</p>
+      <p class="tagline">Paint a mountain, then watch ten thousand years of rain carve river valleys and build small deltas where the rivers reach the sea.</p>
     </div>
 
     <figure class="map-wrap">
@@ -71,6 +71,7 @@
           <input id="strength" type="range" min="1" max="10" step="1" value="5">
         </label>
         <p class="hint">Drag on the map. Hold <kbd>Alt</kbd> to do the opposite. With the map focused: arrow keys move the brush, <kbd>Enter</kbd> paints, <kbd>Space</kbd> runs or halts.</p>
+        <p class="hint">To see a painted range grow gullies, paint it broad and turn the rain up: a small hill sheds too little water to cut one.</p>
       </section>
     </aside>
 
@@ -79,10 +80,13 @@
         <h2 id="h-ref">Reference</h2>
         <ul class="legend" id="legend"></ul>
         <ul class="symbols">
-          <li><span class="sym sym-water" aria-hidden="true"></span>Sea, lakes and rivers</li>
+          <li><span class="sym sym-river" aria-hidden="true"></span>River, drawn wider where it drains more ground</li>
+          <li><span class="sym sym-sea" aria-hidden="true"></span>Sea and lakes; waterlines follow the coast</li>
           <li><span class="sym sym-contour" aria-hidden="true"></span>Contour, every 20&nbsp;m</li>
           <li><span class="sym sym-index" aria-hidden="true"></span>Index contour, every 100&nbsp;m</li>
-          <li><span class="sym sym-alluvium" aria-hidden="true"></span>Alluvium: over 5&nbsp;m laid down since the survey began</li>
+          <li><span class="sym sym-newland" aria-hidden="true"></span>New land: built out into the sea since the survey began</li>
+          <li><span class="sym sym-alluvium" aria-hidden="true"></span>Alluvium near the coast: over 5&nbsp;m laid down since the survey began</li>
+          <li><span class="sym sym-shoal" aria-hidden="true"></span>Shoal: over 5&nbsp;m laid down on the sea floor</li>
         </ul>
       </section>
 
@@ -100,7 +104,7 @@
 
       <dl class="title-block" aria-label="Sheet details">
         <div class="tb-head"><dt>Sheet</dt><dd>4 &middot; <span class="tb-name">Silt</span></dd></div>
-        <div><dt>Method</dt><dd>Virtual-pipe hydraulic erosion after Mei, Decaudin &amp; Hu (2007); kernel in Zig, run as WebAssembly</dd></div>
+        <div><dt>Method</dt><dd>Virtual-pipe hydraulic erosion after Mei, Decaudin &amp; Hu (2007); rivers traced by priority-flood and D8 (Barnes, Lehman &amp; Mulla 2014); kernel in Zig, run as WebAssembly</dd></div>
         <div><dt>Grid</dt><dd id="tb-grid">&ndash;</dd></div>
         <div><dt>Contours</dt><dd>Interval 20&nbsp;m; one cell = 20&nbsp;m (illustrative)</dd></div>
         <div><dt>Step time</dt><dd id="tb-step">&ndash;</dd></div>
@@ -137,7 +141,7 @@
 
   <footer class="sheet-foot">
     <span>Drawn and eroded in your browser. Nothing is uploaded.</span>
-    <span>Built with AI assistance (Claude) &middot; ramenprotokol</span>
+    <span>Built with AI assistance (Claude) &middot; ramenprotokol &middot; <a href="THIRD-PARTY-NOTICES.txt">Third-party notices</a></span>
   </footer>
 </div>
 </body>

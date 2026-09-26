@@ -37,21 +37,45 @@ test('the same seed gives the same survey, bit for bit', async () => {
   assert.notEqual(await run(42), await run(43));
 });
 
-test('the water and material books balance after many steps', async () => {
+test('the water, material and sediment books balance after many steps', async () => {
   const e = await engine();
   e.init(128, 9);
-  const ledger = () => e.stat(STAT.rain) - e.stat(STAT.evaporation) + e.stat(STAT.seaExchange) + e.stat(STAT.brushWater);
-  const water0 = e.stat(STAT.water) - ledger();
-  const mass0 = e.stat(STAT.terrain) + e.stat(STAT.sediment);
+  const S = (k) => e.stat(STAT[k]);
+  const ledger = () => S('rain') - S('evaporation') + S('seaExchange') + S('brushWater') - S('edgeWater');
+  const mass = () => S('terrain') + S('sediment') - S('brushTerrain') + S('edgeSediment');
+  const water0 = S('water') - ledger();
+  const mass0 = mass();
+  const sed0 = S('sediment');
   e.step(300);
   e.brush(64, 40, 10, 3);
   e.step(300);
-  const water = e.stat(STAT.water);
-  const scale = Math.abs(water0) + e.stat(STAT.rain) + e.stat(STAT.evaporation) + Math.abs(e.stat(STAT.seaExchange));
-  assert.ok(Math.abs(water - (water0 + ledger())) < 1e-5 * scale, 'water books');
-  const mass = e.stat(STAT.terrain) + e.stat(STAT.sediment) - e.stat(STAT.brushTerrain);
-  assert.ok(Math.abs(mass - mass0) < 1e-5 * Math.abs(mass0), 'material books');
-  assert.ok(e.stat(STAT.brushTerrain) > 0);
+  const scale = Math.abs(water0) + S('rain') + S('evaporation') + Math.abs(S('seaExchange')) + S('edgeWater');
+  assert.ok(Math.abs(S('water') - (water0 + ledger())) < 1e-5 * scale, 'water books');
+  assert.ok(Math.abs(mass() - mass0) < 1e-5 * Math.abs(mass0), 'material books');
+  // The suspended load, judged against the material that moved (not the whole map).
+  assert.ok(Math.abs(S('sediment') - (sed0 + S('pickup') - S('edgeSediment'))) < 1e-6 * S('exchange'), 'sediment books');
+  assert.ok(S('brushTerrain') > 0);
+  assert.ok(S('edgeWater') > 0, 'water ran off the open land edges');
+});
+
+test('the drainage survey lists river segments after settle()', async () => {
+  const e = await engine();
+  e.init(256, 1);
+  const v0 = e.surveyVersion;
+  e.step(400);
+  assert.equal(e.settle(), true);
+  assert.ok(e.surveyVersion > v0);
+  assert.equal(e.settle(), false, 'nothing was due');
+  const segs = e.rivers();
+  assert.ok(segs.length >= 5 * 50, `${segs.length / 5} segments`);
+  for (let k = 0; k < segs.length; k += 5) {
+    for (let j = 0; j < 4; j++) assert.ok(segs[k + j] >= -1 && segs[k + j] <= 257);
+    assert.ok(segs[k + 4] >= 1, 'every river drains at least the threshold area');
+  }
+  // Painting marks the survey stale; settle() re-runs it once.
+  e.brush(100, 100, 10, 2);
+  e.brush(110, 100, 10, 2);
+  assert.equal(e.settle(), true);
 });
 
 test('bad input is refused with an error, not a crash', async () => {
@@ -94,6 +118,11 @@ test('heightmap export is a valid 16-bit greyscale PNG of the terrain', async ()
   assert.equal(chunks.IHDR[8], 16); // bit depth
   assert.equal(chunks.IHDR[9], 0); // greyscale
   assert.match(new TextDecoder().decode(chunks.tEXt), /^Description\0silt test export$/);
+  // tEXt is Latin-1 by the PNG spec: "×" is one byte (0xD7); what Latin-1
+  // cannot hold becomes "?".
+  const accented = e.encodeHeightmapPng(lo, hi, '512 × 512 — ok');
+  const text = pngChunk(accented, 'tEXt');
+  assert.deepEqual([...text.subarray(12)], [...Buffer.from('512 \xd7 512 ? ok', 'latin1')]);
   const raw = inflateSync(chunks.IDAT); // Node's zlib accepts the stored blocks
   assert.equal(raw.length, 64 * (1 + 2 * 64));
   const heights = interior(e.fields().height, 64);
@@ -105,6 +134,16 @@ test('heightmap export is a valid 16-bit greyscale PNG of the terrain', async ()
   }
   assert.throws(() => e.encodeHeightmapPng(3, 3), /PNG export/); // empty range
 });
+
+function pngChunk(png, want) {
+  const dv = new DataView(png.buffer, png.byteOffset, png.byteLength);
+  for (let pos = 8; pos < png.length;) {
+    const len = dv.getUint32(pos);
+    if (String.fromCharCode(...png.subarray(pos + 4, pos + 8)) === want) return png.subarray(pos + 8, pos + 8 + len);
+    pos += 12 + len;
+  }
+  return null;
+}
 
 test('grid 256 works too (the slow-device fallback)', async () => {
   const e = await engine();

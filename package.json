@@ -2,7 +2,7 @@
   "name": "silt",
   "version": "0.1.0",
   "private": true,
-  "description": "Paint a mountain, watch 10,000 years of rain carve a river delta. Hydraulic erosion in Zig, compiled to WebAssembly.",
+  "description": "Paint a mountain, watch 10,000 years of rain carve rivers and build deltas at their mouths. Hydraulic erosion in Zig, compiled to WebAssembly.",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -13,6 +13,7 @@
     "test": "npm run test:zig && npm run build && npm run test:js",
     "test:zig": "zig build test --summary all",
     "test:js": "node --test \"tests/*.test.mjs\"",
-    "serve": "node scripts/serve.mjs"
+    "serve": "node scripts/serve.mjs",
+    "bench": "node scripts/bench.mjs"
   }
 }

@@ -88,7 +88,7 @@ export async function launchChrome(chromePath) {
     return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
   };
 
-  async function openPage({ width, height, mobile = false, scale = 1, scheme, reducedMotion = false }) {
+  async function openPage({ width, height, mobile = false, scale = 1, scheme, reducedMotion = false, initScript }) {
     const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
     const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
     const s = (method, params) => send(method, params, sessionId);
@@ -112,6 +112,7 @@ export async function launchChrome(chromePath) {
     if (scheme) features.push({ name: 'prefers-color-scheme', value: scheme });
     if (reducedMotion) features.push({ name: 'prefers-reduced-motion', value: 'reduce' });
     if (features.length) await s('Emulation.setEmulatedMedia', { features });
+    if (initScript) await s('Page.addScriptToEvaluateOnNewDocument', { source: initScript });
 
     const evaluate = async (expression) => {
       const r = await s('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });

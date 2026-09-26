@@ -3,10 +3,13 @@
 
 import { loadEngine, PARAM, STAT, GRID_FULL, GRID_LIGHT, METRES_PER_UNIT, WORLD_UNITS } from './engine.js';
 import { createRenderer, PALETTES } from './render.js';
+import { stepTimeText } from './readout.js';
 
 const YEARS_PER_STEP = 1.25; // playful scale, stated on the page
 const STEP_BUTTON = 20; // +25 years
 const ADVANCE_STEPS = 800; // reduced motion: +1,000 years per press
+const GOAL_STEPS = 8000; // 10,000 years: Run halts here once per survey
+const GOAL_NOTE = '10,000 years. Paint and press Run to keep going.';
 const SLOW_STEP_MS = 10; // a 512² step slower than this falls back to 256²
 const FRAME_BUDGET_MS = 9; // simulation time per animation frame
 const MAX_SEED = 99999;
@@ -59,7 +62,10 @@ const state = {
   seed: DEFAULT_SEED,
   running: false,
   advancing: 0, // reduced-motion steps still to run
-  stepMs: 2, // rolling average, measured
+  stepMs: null, // rolling average on the current grid; null until measured
+  surveyMs: null, // drainage survey time on the current grid; null until measured
+  pastGoal: false, // the 10,000-year halt has happened for this survey
+  lost: false, // the WebGL context is lost
   dirty: true,
   baseDirty: true,
   theme: 'light',
@@ -91,22 +97,32 @@ function applyRain() {
   state.engine.setParam(PARAM.rain, Number(ui.rain.value) / RAIN_SCALE);
 }
 
+// The kernel books every source and sink; the page checks that what is on
+// the map still equals what the books say should be.
 function openBooks() {
   const e = state.engine;
-  const water = e.stat(STAT.water) - ledgerWater();
-  const mass = e.stat(STAT.terrain) + e.stat(STAT.sediment) - e.stat(STAT.brushTerrain);
-  state.books = { water, mass };
+  state.books = { water: e.stat(STAT.water) - ledgerWater(), mass: ledgerMass() };
 }
 
 function ledgerWater() {
   const e = state.engine;
-  return e.stat(STAT.rain) - e.stat(STAT.evaporation) + e.stat(STAT.seaExchange) + e.stat(STAT.brushWater);
+  return e.stat(STAT.rain) - e.stat(STAT.evaporation) + e.stat(STAT.seaExchange) + e.stat(STAT.brushWater) - e.stat(STAT.edgeWater);
+}
+
+/** Terrain plus suspended sediment, less painting, plus what ran off the edges: constant. */
+function ledgerMass() {
+  const e = state.engine;
+  return e.stat(STAT.terrain) + e.stat(STAT.sediment) - e.stat(STAT.brushTerrain) + e.stat(STAT.edgeSediment);
 }
 
 function startSurvey(seed, grid) {
   state.seed = seed;
   state.grid = grid;
   state.engine.init(grid, seed);
+  // Timings belong to a grid: show "measuring…" until this one is timed.
+  state.stepMs = null;
+  state.surveyMs = null;
+  state.pastGoal = false;
   applyRain();
   openBooks();
   state.baseDirty = true;
@@ -140,7 +156,6 @@ function chooseGrid() {
   }
   times.sort((a, b) => a - b);
   const median = times[2];
-  state.stepMs = median;
   if (median > SLOW_STEP_MS) {
     state.gridReason = `A 512² step took ${median.toFixed(1)} ms on this device, so the survey runs on a 256² grid to stay smooth. You can switch back.`;
     return GRID_LIGHT;
@@ -157,25 +172,27 @@ function palette() {
 }
 
 function draw() {
-  state.renderer.draw(state.engine, palette(), { baseDirty: state.baseDirty });
+  if (!state.renderer.draw(state.engine, palette(), { baseDirty: state.baseDirty })) return false;
   state.baseDirty = false;
+  return true;
 }
 
 function updateReadouts(force = false) {
   ui.years.textContent = fmtInt(years());
   state.frames++;
-  if (!force && state.frames % 20 !== 0) return;
-  ui.tbStep.textContent = `${state.stepMs.toFixed(2)} ms per step, measured here (${state.grid}² grid)`;
+  // While running, the slower readouts refresh every 20th frame; when
+  // halted (painting, stepping, resetting) they always refresh.
+  if (!force && state.running && state.frames % 20 !== 0) return;
+  ui.tbStep.textContent = stepTimeText(state.stepMs, state.surveyMs, state.grid);
   // The kernel books every drop of water and grain of sediment; show how
   // closely the books balance (f32 fields, so a few parts per million).
   const e = state.engine;
   const b = state.books;
   const water = e.stat(STAT.water);
   const expected = b.water + ledgerWater();
-  const scale = Math.abs(b.water) + e.stat(STAT.rain) + e.stat(STAT.evaporation) + Math.abs(e.stat(STAT.seaExchange)) + 1;
-  const mass = e.stat(STAT.terrain) + e.stat(STAT.sediment) - e.stat(STAT.brushTerrain);
+  const scale = Math.abs(b.water) + e.stat(STAT.rain) + e.stat(STAT.evaporation) + Math.abs(e.stat(STAT.seaExchange)) + e.stat(STAT.edgeWater) + 1;
   const waterPpm = (Math.abs(water - expected) / scale) * 1e6;
-  const massPpm = (Math.abs(mass - b.mass) / (Math.abs(b.mass) + 1)) * 1e6;
+  const massPpm = (Math.abs(ledgerMass() - b.mass) / (Math.abs(b.mass) + 1)) * 1e6;
   const worst = Math.max(waterPpm, massPpm);
   ui.tbLedger.textContent = `Water and rock balance to ${worst < 0.01 ? '< 0.01' : worst.toPrecision(2)} parts per million (checked live)`;
 }
@@ -416,9 +433,12 @@ function wirePainting(canvas) {
 // Time
 
 function setRunning(on) {
+  const was = state.running;
   state.running = on && !reducedMotion.matches;
   ui.run.setAttribute('aria-pressed', String(state.running));
   ui.run.textContent = runLabel();
+  if (state.running && ui.status.textContent === GOAL_NOTE) say('');
+  if (was && !state.running && state.engine) updateReadouts(true);
 }
 
 function runLabel() {
@@ -440,30 +460,61 @@ function toggleRun() {
   setRunning(!state.running);
 }
 
+function measureStep(ms, k, weight) {
+  const per = ms / k;
+  state.stepMs = state.stepMs == null ? per : state.stepMs + (per - state.stepMs) * weight;
+}
+
+/** Catch the sea and the drainage survey up (after painting, or every 16 steps). */
+function settle() {
+  const t = performance.now();
+  const surveyed = state.engine.settle();
+  const ms = performance.now() - t;
+  if (surveyed) {
+    state.surveyMs = state.surveyMs == null ? ms : state.surveyMs + (ms - state.surveyMs) * 0.2;
+    state.dirty = true;
+  }
+  return ms;
+}
+
+function reachedGoal() {
+  if (state.pastGoal || state.engine.steps < GOAL_STEPS) return;
+  state.pastGoal = true;
+  if (state.running) setRunning(false);
+  say(GOAL_NOTE);
+}
+
 function frame() {
   const e = state.engine;
-  if (e) {
+  if (e && !state.lost) {
+    // The survey (about as long as a few steps) comes out of this frame's
+    // budget, so a frame that re-surveys runs fewer steps instead of stalling.
+    const settleMs = state.advancing > 0 ? 0 : settle();
     if (state.running || state.advancing > 0) {
-      let k = Math.max(1, Math.min(32, Math.floor(FRAME_BUDGET_MS / Math.max(state.stepMs, 0.05))));
+      const budget = Math.max(0, FRAME_BUDGET_MS - settleMs);
+      // Until this grid is timed, run one step and time it.
+      let k = state.stepMs == null ? 1 : Math.max(1, Math.min(32, Math.floor(budget / Math.max(state.stepMs, 0.05))));
       if (state.advancing > 0) k = Math.min(state.advancing, k * 2);
+      else if (!state.pastGoal) k = Math.max(1, Math.min(k, GOAL_STEPS - e.steps));
       const t = performance.now();
       e.step(k);
-      const per = (performance.now() - t) / k;
-      state.stepMs += (per - state.stepMs) * 0.1;
+      measureStep(performance.now() - t, k, 0.1);
       if (state.advancing > 0) {
         state.advancing -= k;
         say(state.advancing > 0 ? `Surveying… ${Math.round(100 - (100 * state.advancing) / ADVANCE_STEPS)}%` : '');
         if (state.advancing === 0) {
+          settle();
           ui.run.disabled = false;
           ui.run.textContent = runLabel();
           state.dirty = true;
+          reachedGoal();
         }
       } else {
         state.dirty = true;
+        reachedGoal();
       }
     }
-    if (state.dirty && state.advancing === 0) {
-      draw();
+    if (state.dirty && state.advancing === 0 && draw()) {
       updateReadouts();
       state.dirty = false;
     }
@@ -557,7 +608,7 @@ function wireControls() {
     if (!state.engine) return;
     const t = performance.now();
     state.engine.step(STEP_BUTTON);
-    state.stepMs += ((performance.now() - t) / STEP_BUTTON - state.stepMs) * 0.3;
+    measureStep(performance.now() - t, STEP_BUTTON, 0.3);
     state.dirty = true;
   });
   ui.reset.addEventListener('click', () => {
@@ -658,7 +709,18 @@ async function boot() {
 
   const grid = chooseGrid();
   try {
-    state.renderer = createRenderer(ui.canvas, params.get('renderer') === 'canvas2d' ? 'canvas2d' : 'webgl2');
+    state.renderer = createRenderer(ui.canvas, params.get('renderer') === 'canvas2d' ? 'canvas2d' : 'webgl2', {
+      onLost() {
+        state.lost = true;
+        say('The graphics card dropped the map. It will come back when the browser restores it.');
+      },
+      onRestored() {
+        state.lost = false;
+        state.dirty = true;
+        state.baseDirty = true;
+        say('');
+      },
+    });
   } catch (err) {
     say(err.message);
     return;
@@ -670,8 +732,10 @@ async function boot() {
   resizeCanvas();
   say('');
   requestAnimationFrame(frame);
-  // For the automated browser check.
-  window.__silt = { state, engine: state.engine };
+  // For the automated browser check only (headless automation or ?test=1).
+  if (navigator.webdriver || params.get('test') === '1') window.__silt = { state, engine: state.engine, stepTimeText };
+  // The rain starts on its own; with reduced motion nothing moves until asked.
+  if (!reducedMotion.matches) setRunning(true);
 }
 
 boot();

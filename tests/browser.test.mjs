@@ -1,7 +1,9 @@
 // End-to-end check of the built dist/ in headless Chrome: it loads without
 // console errors at desktop and phone widths, in both themes, with reduced
-// motion and with the Canvas 2D fallback, and the core loop works (run,
-// paint with a real pointer drag, paint with the keyboard, export).
+// motion and with the Canvas 2D fallback, and the core loop works (it runs
+// by itself, halts at 10,000 years, paints with a real pointer drag and with
+// the keyboard, exports, survives a lost WebGL context). The page exposes
+// window.__silt only to automation or with ?test=1.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { serve } from '../scripts/serve.mjs';
@@ -29,9 +31,9 @@ after(async () => {
 
 const ready = 'window.__silt && window.__silt.state.renderer && window.__silt.state.engine.size > 0';
 
-async function open(opts, path = '') {
+async function open(opts, query = '') {
   const page = await chrome.openPage(opts);
-  await page.navigate(base + path);
+  await page.navigate(`${base}?test=1${query}`);
   await page.waitFor(ready, 30000);
   return page;
 }
@@ -63,7 +65,7 @@ const inkOnMap = `(() => {
   return seen.size;
 })()`;
 
-test('browser: desktop page loads, runs and paints without errors', { skip: plan.skip }, async () => {
+test('browser: desktop page loads, runs by itself and paints without errors', { skip: plan.skip }, async () => {
   if (plan.fail) assert.fail(plan.fail);
   const page = await open({ width: 1280, height: 800, scheme: 'light' });
   try {
@@ -73,14 +75,36 @@ test('browser: desktop page loads, runs and paints without errors', { skip: plan
     assert.equal(l.theme, 'light');
     assert.ok(await page.evaluate(inkOnMap) > 20, 'the map looks blank');
 
-    // Run for a moment, then halt.
-    await page.evaluate(`document.getElementById('run').click()`);
-    await page.waitFor('window.__silt.engine.steps > 30', 20000);
+    // The rain starts by itself; the rivers are surveyed as it runs.
+    assert.equal(await page.evaluate('window.__silt.state.running'), true, 'no autoplay');
+    await page.waitFor('window.__silt.engine.steps > 60 && window.__silt.engine.rivers().length > 5 * 20', 20000);
+    assert.match(await page.evaluate(`document.getElementById('tb-step').textContent`), /ms per step.*measured here \(512² grid\)/);
+    // Halt.
     await page.evaluate(`document.getElementById('run').click()`);
     const halted = await page.evaluate('window.__silt.engine.steps');
     await new Promise((r) => setTimeout(r, 300));
     assert.equal(await page.evaluate('window.__silt.engine.steps'), halted, 'still running after Halt');
     assert.match(await page.evaluate(`document.getElementById('years').textContent`), /^[\d,]+$/);
+
+    // A new grid has no timing yet: "measuring…", never the other grid's number.
+    await page.evaluate(`document.querySelector('input[name="grid"][value="256"]').click()`);
+    assert.match(await page.evaluate(`document.getElementById('tb-step').textContent`), /^measuring… \(256² grid\)$/);
+    await page.evaluate(`document.getElementById('step').click()`);
+    await page.waitFor(`/ms per step.*\\(256² grid\\)/.test(document.getElementById('tb-step').textContent)`, 5000);
+    await page.evaluate(`document.querySelector('input[name="grid"][value="512"]').click()`);
+    assert.match(await page.evaluate(`document.getElementById('tb-step').textContent`), /^measuring… \(512² grid\)$/);
+
+    // Run halts once at 10,000 years, with a note; Run again carries on.
+    await page.evaluate('window.__silt.engine.step(7990)');
+    await page.evaluate(`document.getElementById('run').click()`);
+    await page.waitFor('!window.__silt.state.running', 20000);
+    assert.equal(await page.evaluate('window.__silt.engine.steps'), 8000);
+    assert.equal(await page.evaluate(`document.getElementById('years').textContent`), '10,000');
+    assert.equal(await page.evaluate(`document.getElementById('status').textContent`), '10,000 years. Paint and press Run to keep going.');
+    await page.evaluate(`document.getElementById('run').click()`);
+    await page.waitFor('window.__silt.engine.steps > 8010', 20000);
+    assert.equal(await page.evaluate(`document.getElementById('status').textContent`), '');
+    await page.evaluate(`document.getElementById('run').click()`);
 
     // A real pointer drag across the map raises ground.
     const box = JSON.parse(await page.evaluate(`JSON.stringify(window.__silt.state.renderer.canvas.getBoundingClientRect())`));
@@ -107,6 +131,15 @@ test('browser: desktop page loads, runs and paints without errors', { skip: plan
     // Export the heightmap (downloads are denied in the test browser).
     await page.evaluate(`document.getElementById('export-height').click()`);
     assert.match(await page.evaluate(`document.getElementById('export-msg').textContent`), /16-bit PNG/);
+
+    // Losing the WebGL context says so, and the map comes back when it is restored.
+    if (l.renderer === 'webgl2') {
+      await page.evaluate(`(window.__lose = window.__silt.state.renderer.canvas.getContext('webgl2').getExtension('WEBGL_lose_context'), window.__lose.loseContext())`);
+      await page.waitFor(`/graphics card dropped the map/.test(document.getElementById('status').textContent)`, 5000);
+      await page.evaluate('window.__lose.restoreContext()');
+      await page.waitFor(`document.getElementById('status').textContent === '' && !window.__silt.state.lost && !window.__silt.state.dirty`, 10000);
+      assert.ok(await page.evaluate(inkOnMap) > 20, 'the map did not come back');
+    }
 
     // Bad survey number: a clear message, nothing reset.
     const steps = await page.evaluate('window.__silt.engine.steps');
@@ -139,6 +172,8 @@ test('browser: reduced motion never animates; the user steps it', { skip: plan.s
   if (plan.fail) assert.fail(plan.fail);
   const page = await open({ width: 1280, height: 800, reducedMotion: true });
   try {
+    assert.equal(await page.evaluate('window.__silt.state.running'), false, 'autoplay under reduced motion');
+    assert.equal(await page.evaluate('window.__silt.engine.steps'), 0);
     assert.equal(await page.evaluate(`document.getElementById('run').textContent`), '+1,000 years');
     await page.evaluate(`document.getElementById('run').click()`);
     await page.waitFor('window.__silt.engine.steps === 800 && !document.getElementById("run").disabled', 30000);
@@ -153,7 +188,7 @@ test('browser: reduced motion never animates; the user steps it', { skip: plan.s
 
 test('browser: Canvas 2D fallback and a bad seed in the address', { skip: plan.skip }, async () => {
   if (plan.fail) assert.fail(plan.fail);
-  const page = await open({ width: 1024, height: 768 }, '?renderer=canvas2d&seed=abc&grid=256');
+  const page = await open({ width: 1024, height: 768 }, '&renderer=canvas2d&seed=abc&grid=256');
   try {
     const l = JSON.parse(await page.evaluate(layout));
     assert.equal(l.renderer, 'canvas2d');
@@ -162,6 +197,21 @@ test('browser: Canvas 2D fallback and a bad seed in the address', { skip: plan.s
     assert.ok(await page.evaluate(inkOnMap) > 10, 'the fallback map looks blank');
     assert.match(await page.evaluate(`document.getElementById('seed-msg').textContent`), /not a survey number/);
     noProblems(page, 'canvas2d');
+  } finally {
+    await page.close();
+  }
+});
+
+test('browser: the test hook is hidden from ordinary visitors', { skip: plan.skip }, async () => {
+  if (plan.fail) assert.fail(plan.fail);
+  // Look like a normal browser (not automation), and leave out ?test=1.
+  const page = await chrome.openPage({ width: 1024, height: 768, initScript: "Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => false })" });
+  try {
+    await page.navigate(base);
+    await page.waitFor(`document.documentElement.dataset.renderer && document.getElementById('status').textContent === ''`, 30000);
+    assert.equal(await page.evaluate('navigator.webdriver'), false);
+    assert.equal(await page.evaluate('typeof window.__silt'), 'undefined');
+    noProblems(page, 'no hook');
   } finally {
     await page.close();
   }
