@@ -91,8 +91,10 @@ const Stored = struct {
 };
 
 /// Encodes an n x n greyscale image, 16 bits per sample. `src` is read at
-/// `first + y * stride + x`; `lo` maps to 0 and `hi` to 65535. Returns the
-/// number of bytes written to `out` (which must hold `encodedSize`).
+/// `first + y * stride + x`; `lo` maps to 0 and `hi` to 65535. `text` goes
+/// into a tEXt "Description" chunk, which the PNG spec defines as Latin-1
+/// (ISO 8859-1) with no NUL bytes; the caller encodes it that way. Returns
+/// the number of bytes written to `out` (which must hold `encodedSize`).
 pub fn encodeGray16(out_buf: []u8, n: u32, src: []const f32, first: usize, stride: usize, lo: f32, hi: f32, text: []const u8) usize {
     var o = Out{ .buf = out_buf };
     o.bytes(&.{ 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n' });

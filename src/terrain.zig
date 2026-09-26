@@ -79,6 +79,9 @@ pub fn ridged(seed: u32, x: f32, y: f32, octaves: u32) f32 {
     return sum / norm;
 }
 
+/// Depth (world units) the sea floor drops to within a few cells of the coast.
+const shoreface: f32 = 0.6;
+
 fn smoothstep(e0: f32, e1: f32, x: f32) f32 {
     const t = std.math.clamp((x - e0) / (e1 - e0), 0.0, 1.0);
     return t * t * (3.0 - 2.0 * t);
@@ -99,8 +102,10 @@ pub fn height(seed: u32, u: f32, v: f32) f32 {
         // deeper water towards the south edge.
         const off = -t;
         // Continuous with the land at the shore (depth 0 at the coast), so the
-        // coastline is a clean curve rather than a staircase of cells.
-        const depth = 1.4 * (1.0 - @exp(-off / 0.05)) + 8.5 * smoothstep(0.07, 0.3, off);
+        // coastline is a clean curve rather than a staircase of cells. A short
+        // steep shoreface first: new land has to be built by a river's load,
+        // not by a film of sheet-wash filling a knee-deep margin.
+        const depth = shoreface * (1.0 - @exp(-off / 0.006)) + 1.0 * (1.0 - @exp(-off / 0.06)) + 8.5 * smoothstep(0.07, 0.3, off);
         return -depth + 0.35 * fbm(seed +% 2, u * 9.0, v * 9.0, 3) * smoothstep(0.0, 0.05, off);
     }
 
