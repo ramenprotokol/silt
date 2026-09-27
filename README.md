@@ -23,6 +23,10 @@ handles the controls and draws the map straight from the kernel's memory.
 4. At 10,000 (playful) years the run halts with a note. Paint, then press
    **Run** to keep going.
 5. Drag on the map to raise ground (or switch to **Lower**, or hold <kbd>Alt</kbd>).
+   One drag with the default brush (720 m across, 20 m a dab) raises a ridge
+   roughly 80–100 m high (measured on the page), enough to bend the contours
+   and push a river aside at once. Dabs are spaced along the path, so a quick
+   drag paints as much as a slow one.
    A small painted hill mostly rounds off; a broad painted range under heavy
    rain grows gullies and pushes its own row of small deltas into the sea.
 6. Export the terrain as a **16-bit greyscale PNG heightmap**, or save the map view.
@@ -242,7 +246,9 @@ What the tests cover:
   - it starts by itself and draws rivers;
   - Halt, the grid switch showing "not timed yet" while halted, the step time
     kept across a reset, and the 10,000-year halt and note;
-  - pointer and keyboard painting, export and the bad-survey-number message;
+  - pointer and keyboard painting (one default drag raises the ground by at
+    least 60 m, and a quick drag paints as much as a slow one), export and the
+    bad-survey-number message;
   - WebGL context loss and restore;
   - reduced motion (no autoplay, jumps only), the Canvas 2D fallback;
   - that `window.__silt` is hidden from an ordinary visitor.

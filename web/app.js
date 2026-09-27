@@ -310,8 +310,10 @@ function toGrid(clientX, clientY) {
 }
 
 function strengthPerStamp() {
-  // 0.06 .. 0.6 world units (1.2 .. 12 m) per stamp.
-  return Number(ui.strength.value) * 0.06;
+  // 0.2 .. 2 world units (4 .. 40 m) per stamp. At the default (5, so 20 m),
+  // one drag with the default brush raises a ridge roughly 80–100 m high,
+  // several contours tall, so a first stroke is plainly visible on the sheet.
+  return Number(ui.strength.value) * 0.2;
 }
 
 function mode() {
@@ -337,9 +339,14 @@ function strokeTo(p, invert) {
   const dy = p.y - last.y;
   const dist = Math.hypot(dx, dy);
   if (dist < spacing) return;
-  const n = Math.min(64, Math.floor(dist / spacing));
-  for (let i = 1; i <= n; i++) stamp(last.x + (dx * i) / n, last.y + (dy * i) / n, invert);
-  state.stroke = p;
+  // Dabs go down every `spacing` cells along the path, and the stroke carries
+  // on from the last dab, so a quick drag paints as much as a slow one. (A
+  // jump of more than 64 dabs is spread evenly and ends at the pointer.)
+  const n = Math.floor(dist / spacing);
+  const count = Math.min(n, 64);
+  const gap = n > 64 ? dist / 64 : spacing;
+  for (let i = 1; i <= count; i++) stamp(last.x + (dx * i * gap) / dist, last.y + (dy * i * gap) / dist, invert);
+  state.stroke = { x: last.x + (dx * count * gap) / dist, y: last.y + (dy * count * gap) / dist };
 }
 
 function placeRing() {

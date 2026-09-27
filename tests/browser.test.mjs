@@ -107,7 +107,9 @@ test('browser: desktop page loads, runs by itself and paints without errors', { 
     assert.equal(await page.evaluate(`document.getElementById('status').textContent`), '');
     await page.evaluate(`document.getElementById('run').click()`);
 
-    // A real pointer drag across the map raises ground.
+    // A real pointer drag across the map raises ground, and one drag with the
+    // default brush is plainly visible: a ridge at least three 20 m contours tall.
+    await page.evaluate('void (window.__h0 = Float32Array.from(window.__silt.engine.fields().height))');
     const box = JSON.parse(await page.evaluate(`JSON.stringify(window.__silt.state.renderer.canvas.getBoundingClientRect())`));
     const at = (fx, fy) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
     const mouse = (type, p, buttons) => page.send('Input.dispatchMouseEvent', { type, x: p.x, y: p.y, button: 'left', buttons, clickCount: 1 });
@@ -116,6 +118,14 @@ test('browser: desktop page loads, runs by itself and paints without errors', { 
     await mouse('mouseReleased', at(0.6, 0.45), 0);
     const painted = await page.evaluate('window.__silt.engine.stat(7)');
     assert.ok(painted > 1, `pointer painting added ${painted}`);
+    const ridgeM = await page.evaluate(`(() => {
+      const h = window.__silt.engine.fields().height;
+      let max = 0;
+      for (let i = 0; i < h.length; i++) max = Math.max(max, h[i] - window.__h0[i]);
+      return max * 20;
+    })()`);
+    assert.ok(ridgeM >= 60, `one default drag raised the ground by only ${ridgeM.toFixed(1)} m`);
+    assert.equal(await page.evaluate(`document.getElementById('strength-out').textContent`), '20.0 m a dab');
 
     // Keyboard painting: focus the map, move, press Enter.
     await page.evaluate(`document.querySelector('input[name="mode"][value="lower"]').click()`);
@@ -148,6 +158,20 @@ test('browser: desktop page loads, runs by itself and paints without errors', { 
     assert.match(await page.evaluate(`document.getElementById('seed-msg').textContent`), /whole numbers from 1 to 99,999/);
     assert.equal(await page.evaluate(`document.getElementById('seed').getAttribute('aria-invalid')`), 'true');
     assert.equal(await page.evaluate('window.__silt.engine.steps'), steps);
+
+    // Dabs are spaced along the path, not one batch per pointer event, so a
+    // quick drag (3 events) paints as much as a slow one (60 events).
+    const dragTotal = async (moves) => {
+      await page.evaluate(`document.getElementById('reset').click()`);
+      await page.evaluate(`document.querySelector('input[name="mode"][value="raise"]').click()`);
+      await mouse('mousePressed', at(0.3, 0.45), 1);
+      for (let k = 1; k <= moves; k++) await mouse('mouseMoved', at(0.3 + (0.3 * k) / moves, 0.45), 1);
+      await mouse('mouseReleased', at(0.6, 0.45), 0);
+      return page.evaluate('window.__silt.engine.stat(7)');
+    };
+    const quick = await dragTotal(3);
+    const slow = await dragTotal(60);
+    assert.ok(quick > 1 && Math.abs(quick - slow) <= 0.01 * slow, `a quick drag painted ${quick}, a slow one ${slow}`);
 
     // Reset while halted, on the same grid: the measured step time stays on show.
     await page.evaluate(`document.getElementById('reset').click()`);
