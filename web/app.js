@@ -117,12 +117,15 @@ function ledgerMass() {
 }
 
 function startSurvey(seed, grid) {
+  // Timings belong to a grid: a new grid shows no number until it is timed.
+  // A reset or a new survey on the same grid keeps the last measured one.
+  if (grid !== state.grid) {
+    state.stepMs = null;
+    state.surveyMs = null;
+  }
   state.seed = seed;
   state.grid = grid;
   state.engine.init(grid, seed);
-  // Timings belong to a grid: show "measuring…" until this one is timed.
-  state.stepMs = null;
-  state.surveyMs = null;
   state.pastGoal = false;
   applyRain();
   openBooks();
@@ -185,7 +188,7 @@ function updateReadouts(force = false) {
   // halted (painting, stepping, resetting) they always refresh.
   if (!force && !state.readoutsDue && state.running && state.frames % 20 !== 0) return;
   state.readoutsDue = false;
-  ui.tbStep.textContent = stepTimeText(state.stepMs, state.surveyMs, state.grid);
+  ui.tbStep.textContent = stepTimeText(state.stepMs, state.surveyMs, state.grid, state.running || state.advancing > 0);
   // The kernel books every drop of water and grain of sediment; show how
   // closely the books balance (f32 fields, so a few parts per million).
   const e = state.engine;
@@ -440,7 +443,8 @@ function setRunning(on) {
   ui.run.setAttribute('aria-pressed', String(state.running));
   ui.run.textContent = runLabel();
   if (state.running && ui.status.textContent === GOAL_NOTE) say('');
-  if (was && !state.running && state.engine) updateReadouts(true);
+  // Running or halted changes what an untimed step time says, so refresh on either.
+  if (was !== state.running && state.engine) updateReadouts(true);
 }
 
 function runLabel() {

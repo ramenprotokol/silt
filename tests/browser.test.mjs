@@ -86,13 +86,14 @@ test('browser: desktop page loads, runs by itself and paints without errors', { 
     assert.equal(await page.evaluate('window.__silt.engine.steps'), halted, 'still running after Halt');
     assert.match(await page.evaluate(`document.getElementById('years').textContent`), /^[\d,]+$/);
 
-    // A new grid has no timing yet: "measuring…", never the other grid's number.
+    // A new grid has no timing yet, never the other grid's number. Time is
+    // halted, so the line says it has not been timed rather than "measuring…".
     await page.evaluate(`document.querySelector('input[name="grid"][value="256"]').click()`);
-    assert.match(await page.evaluate(`document.getElementById('tb-step').textContent`), /^measuring… \(256² grid\)$/);
+    assert.match(await page.evaluate(`document.getElementById('tb-step').textContent`), /^not timed yet; timed once the survey runs \(256² grid\)$/);
     await page.evaluate(`document.getElementById('step').click()`);
     await page.waitFor(`/ms per step.*\\(256² grid\\)/.test(document.getElementById('tb-step').textContent)`, 5000);
     await page.evaluate(`document.querySelector('input[name="grid"][value="512"]').click()`);
-    assert.match(await page.evaluate(`document.getElementById('tb-step').textContent`), /^measuring… \(512² grid\)$/);
+    assert.match(await page.evaluate(`document.getElementById('tb-step').textContent`), /^not timed yet; timed once the survey runs \(512² grid\)$/);
 
     // Run halts once at 10,000 years, with a note; Run again carries on.
     await page.evaluate('window.__silt.engine.step(7990)');
@@ -147,6 +148,11 @@ test('browser: desktop page loads, runs by itself and paints without errors', { 
     assert.match(await page.evaluate(`document.getElementById('seed-msg').textContent`), /whole numbers from 1 to 99,999/);
     assert.equal(await page.evaluate(`document.getElementById('seed').getAttribute('aria-invalid')`), 'true');
     assert.equal(await page.evaluate('window.__silt.engine.steps'), steps);
+
+    // Reset while halted, on the same grid: the measured step time stays on show.
+    await page.evaluate(`document.getElementById('reset').click()`);
+    assert.equal(await page.evaluate('window.__silt.state.running'), false);
+    assert.match(await page.evaluate(`document.getElementById('tb-step').textContent`), /^\d+\.\d\d ms per step.*measured here \(512² grid\)$/);
     noProblems(page, 'desktop');
   } finally {
     await page.close();

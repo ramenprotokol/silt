@@ -160,8 +160,10 @@ The survey is for drawing only; the physics never reads it.
   - The rain starts on its own (not with reduced motion) and halts once at
     10,000 years.
   - The title block's step time and survey time are measured on the current
-    grid. They read "measuring…" until then, and are never a default or the
-    other grid's number.
+    grid, and are never a default or the other grid's number. Until the grid
+    has been timed they read "measuring…" while time runs, or "not timed yet"
+    while it is halted. A reset or a new survey on the same grid keeps the
+    last measured numbers.
   - The ledger shows how closely the water and rock books balance, refreshed
     every 20 frames while running and on every change while halted.
   - `window.__silt` (for the browser test) exists only under automation or
@@ -224,7 +226,7 @@ What the tests cover:
     random painting: no NaN, no blow-up.
   - *Determinism and brush.* SIMD matches scalar bit for bit; brush shape,
     texture, clamps and bad input; PNG structure.
-- **Node (`tests/*.test.mjs`): 28 tests.**
+- **Node (`tests/*.test.mjs`): 30 tests.**
   - **Acceptance: deltas.** On survey 1 after the standard run (8,000 steps), the
     correlation between river discharge at the original coastline and coast
     advance must pass 0.5, at 512² and at 256². Measured: **r = 0.80 at 512²**
@@ -233,12 +235,13 @@ What the tests cover:
     stability clamps.
   - Books after 600 steps with painting; the drainage survey; bad input; PNG
     decode and Latin-1 text; size budget; headers; contrast; third-party notices.
-  - "measuring…" before a grid is timed.
+  - "measuring…" before a grid is timed, and never while time is halted.
 - **Browser (`tests/browser.test.mjs`, headless Chrome over the DevTools
   protocol).** No console errors at 1280×800 or at a true 400 px phone width
   (device emulation), in both themes. It also checks:
   - it starts by itself and draws rivers;
-  - Halt, the grid switch showing "measuring…", and the 10,000-year halt and note;
+  - Halt, the grid switch showing "not timed yet" while halted, the step time
+    kept across a reset, and the 10,000-year halt and note;
   - pointer and keyboard painting, export and the bad-survey-number message;
   - WebGL context loss and restore;
   - reduced motion (no autoplay, jumps only), the Canvas 2D fallback;
