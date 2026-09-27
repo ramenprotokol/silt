@@ -2,6 +2,8 @@
 
 **Paint a mountain, watch 10,000 years of rain carve river valleys and build small deltas where the rivers reach the sea.**
 
+**Live:** https://silt-62k.pages.dev
+
 ![Sheet 4 after 10,000 (playful) years: rivers drawn as lines down dendritic valleys, and two pale deltas built out where the biggest rivers meet the sea](docs/screenshot.png)
 
 silt is a hydraulic-erosion model drawn as a geological survey sheet. The whole
