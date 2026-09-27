@@ -168,12 +168,12 @@ fn fill(s: *Sim) void {
             inline for (nb) |o| {
                 const j = at(c, o);
                 if (s.recv[j] == unseen) {
-                const f = smax(s.b[j], fc);
-                const kj = key(f);
-                s.filled[j] = f;
-                s.recv[j] = @intCast(c);
-                s.sx[j] = @floatFromInt(kj);
-                q.push(@intCast(j), kj);
+                    const f = smax(s.b[j], fc);
+                    const kj = key(f);
+                    s.filled[j] = f;
+                    s.recv[j] = @intCast(c);
+                    s.sx[j] = @floatFromInt(kj);
+                    q.push(@intCast(j), kj);
                 }
             }
         }
@@ -434,4 +434,3 @@ fn coastDistance(s: *Sim) void {
         }
     }
 }
-
