@@ -240,11 +240,16 @@ What the tests cover:
   - Fuzz over the exported parameter ranges, including the evaporation and
     stability clamps.
   - Books after 600 steps with painting; the drainage survey; bad input; PNG
-    decode and Latin-1 text; size budget; headers; contrast; third-party notices.
+    decode and Latin-1 text; size budget; headers; contrast; third-party notices;
+    the self-hosted typeface (no Google Fonts host anywhere in `dist/`, a CSP
+    with `style-src 'self'` and `font-src 'self'`, and every `@font-face` file
+    shipped and used).
   - "measuring…" before a grid is timed, and never while time is halted.
 - **Browser (`tests/browser.test.mjs`, headless Chrome over the DevTools
   protocol).** No console errors at 1280×800 or at a true 400 px phone width
   (device emulation), in both themes. It also checks:
+  - no request leaves the site, and the EB Garamond faces load from its own
+    `fonts/` folder;
   - it starts by itself and draws rivers;
   - Halt, the grid switch showing "not timed yet" while halted, the step time
     kept across a reset, and the 10,000-year halt and note;
@@ -260,13 +265,15 @@ What the tests cover:
 
 ## Running on Cloudflare (free)
 
-silt is a static site: `dist/` holds 10 files, about 115 KiB in all. There is
+silt is a static site: `dist/` holds 12 files, about 190 KiB in all (70 KiB
+of it the two font files). There is
 no server, no Worker, no storage and no API calls. It fits Cloudflare Pages'
 free tier (unlimited requests, 20,000 files, 25 MiB per file) with a very wide
 margin.
 
 `dist/_headers` sets a Content-Security-Policy (`'wasm-unsafe-eval'` is the only
-relaxation, needed to compile WebAssembly), `nosniff`, `no-referrer` and a
+relaxation, needed to compile WebAssembly; scripts, styles and fonts come only
+from the site itself), `nosniff`, `no-referrer` and a
 locked-down `Permissions-Policy`. It sets no long `Cache-Control`, because the
 file names are not content-hashed.
 
@@ -285,8 +292,11 @@ crafted link cannot make a visitor's tab do unbounded work.
 `silt.wasm` contains a little compiled third-party code: the parts of Zig's
 standard library and compiler-rt that the build links in (MIT). Among them are
 `expf` and `sinf`, which Zig ported from musl libc (MIT). `dist/THIRD-PARTY-NOTICES.txt`
-has the licence texts and is linked from the page's footer. The typeface
-(EB Garamond, SIL Open Font License) is loaded from Google Fonts, not shipped.
+has the licence texts and is linked from the page's footer. The typeface,
+EB Garamond 1.003 (SIL Open Font License 1.1), ships in `dist/fonts/` as two
+Latin-subset WOFF2 files (the variable roman and the italic, as Google Fonts
+serves them, unmodified); the notices carry its copyright line and the full
+licence text. The page makes no requests to any other site.
 
 ## Honest limitations
 
@@ -321,8 +331,9 @@ has the licence texts and is linked from the page's footer. The typeface
 - **Browser support.** It needs WebAssembly SIMD (Chrome 91+, Firefox 89+,
   Safari 16.4+). WebGL2 is preferred; the Canvas 2D fallback is coarser.
 - **The simulation runs on the main thread**, within about 9 ms per frame.
-- **Fonts.** The page loads EB Garamond from Google Fonts, which is a
-  third-party request. Nothing you paint leaves the browser.
+- **Fonts.** EB Garamond ships as a Latin subset only, so text in other
+  scripts would fall back to a system serif. Nothing you paint leaves the
+  browser.
 
 ## Next
 

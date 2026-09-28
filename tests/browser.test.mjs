@@ -38,6 +38,24 @@ async function open(opts, query = '') {
   return page;
 }
 
+// Every request the page made, other than inline data: URLs, is to this server.
+const OFF_ORIGIN = `performance.getEntriesByType('resource').map((e) => e.name)
+  .filter((u) => !u.startsWith('data:') && new URL(u).origin !== location.origin)`;
+
+// The self-hosted EB Garamond faces load under the production CSP.
+// document.fonts.load() rejects if a file is blocked or broken, and resolves
+// with the faces it loaded; check() is then true for each descriptor.
+const FACES = `(async () => {
+  await document.fonts.ready;
+  const out = {};
+  for (const d of ['400 17px "EB Garamond"', '500 17px "EB Garamond"', '600 17px "EB Garamond"', 'italic 400 17px "EB Garamond"']) {
+    const loaded = await document.fonts.load(d);
+    out[d] = { faces: loaded.filter((f) => f.status === 'loaded').length, check: document.fonts.check(d) };
+  }
+  out.files = [...new Set(performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname).filter((p) => p.endsWith('.woff2')))].sort();
+  return out;
+})()`;
+
 function noProblems(page, label) {
   // Chrome may log a GPU-stall performance warning in headless; that is not an error.
   const real = page.problems.filter((p) => !/GPU stall due to ReadPixels/.test(p.text));
@@ -74,6 +92,15 @@ test('browser: desktop page loads, runs by itself and paints without errors', { 
     assert.ok(['webgl2', 'canvas2d'].includes(l.renderer));
     assert.equal(l.theme, 'light');
     assert.ok(await page.evaluate(inkOnMap) > 20, 'the map looks blank');
+
+    // The typeface comes from this site: nothing is fetched from anywhere else.
+    const faces = await page.evaluate(FACES);
+    assert.deepEqual(await page.evaluate(OFF_ORIGIN), [], 'requests left the site');
+    for (const [d, r] of Object.entries(faces)) {
+      if (d === 'files') continue;
+      assert.ok(r.faces >= 1 && r.check, `${d} did not load from a self-hosted face: ${JSON.stringify(r)}`);
+    }
+    assert.deepEqual(faces.files, ['/fonts/eb-garamond-italic-400.woff2', '/fonts/eb-garamond-variable.woff2']);
 
     // The rain starts by itself; the rivers are surveyed as it runs.
     assert.equal(await page.evaluate('window.__silt.state.running'), true, 'no autoplay');
@@ -177,6 +204,7 @@ test('browser: desktop page loads, runs by itself and paints without errors', { 
     await page.evaluate(`document.getElementById('reset').click()`);
     assert.equal(await page.evaluate('window.__silt.state.running'), false);
     assert.match(await page.evaluate(`document.getElementById('tb-step').textContent`), /^\d+\.\d\d ms per step.*measured here \(512² grid\)$/);
+    assert.deepEqual(await page.evaluate(OFF_ORIGIN), [], 'requests left the site');
     noProblems(page, 'desktop');
   } finally {
     await page.close();
@@ -192,6 +220,7 @@ test('browser: phone width (400 px, device emulation), dark theme', { skip: plan
     assert.equal(l.scrollW, 400, 'horizontal scroll at 400 px');
     assert.equal(l.theme, 'dark');
     assert.ok(await page.evaluate(inkOnMap) > 20, 'the map looks blank');
+    assert.deepEqual(await page.evaluate(OFF_ORIGIN), [], 'phone: requests left the site');
     noProblems(page, 'phone');
   } finally {
     await page.close();

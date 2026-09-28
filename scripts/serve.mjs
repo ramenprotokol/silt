@@ -16,6 +16,7 @@ const TYPES = {
   '.png': 'image/png',
   '.json': 'application/json',
   '.txt': 'text/plain; charset=utf-8',
+  '.woff2': 'font/woff2',
 };
 
 // Apply the global "/*" block of dist/_headers (Cloudflare Pages format) so

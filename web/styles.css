@@ -1,6 +1,24 @@
 /* silt — a geological survey sheet. Day: printed paper. Night: the same
    sheet in reverse, light linework on a dark ground. */
 
+/* EB Garamond ships with the site (fonts/, SIL Open Font License 1.1; see
+   THIRD-PARTY-NOTICES.txt), so a visit asks no third party for anything.
+   The roman is one variable file (weight axis); Latin subsets only. */
+@font-face {
+  font-family: "EB Garamond";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url(fonts/eb-garamond-variable.woff2) format("woff2");
+}
+@font-face {
+  font-family: "EB Garamond";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/eb-garamond-italic-400.woff2) format("woff2");
+}
+
 :root {
   --paper: #e4dcc7;
   --sheet: #f4eedf;
